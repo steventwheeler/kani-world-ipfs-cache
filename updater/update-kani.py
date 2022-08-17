@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+import signal
 import time
 import json
 from algosdk.v2client import indexer
@@ -23,6 +24,10 @@ ipfsNodeAddress = os.environ.get("IPFS_NODE") or f"{ipfsNodeProto}://{ipfsNodeNa
 
 algoIndexer = indexer.IndexerClient(indexer_token="", indexer_address=indexerAddress)
 ipfsClient = IPFS(ipfsNodeAddress)
+
+def signal_handler(signal, frame):
+    logging.warning(f"Received signal {signal}, exiting...")
+    sys.exit(0)
 
 def extractCID(asset):
     url = asset["params"]["url"]
@@ -88,4 +93,5 @@ def main() -> int:
     return 0
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, signal_handler)
     sys.exit(main())
