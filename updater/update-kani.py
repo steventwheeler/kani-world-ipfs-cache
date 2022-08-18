@@ -15,8 +15,8 @@ from time import gmtime
 logging.Formatter.converter = gmtime
 logging.basicConfig(format="[%(asctime)s.%(msecs)03dZ][%(levelname)s]: %(message)s", datefmt="%Y-%m-%dT%H:%M:%S", level=logging.INFO)
 
+creatorAddresses = str(os.environ.get("CREATOR_ADDRESS") or os.environ.get("CREATOR_ADDRESSES") or "KANIGZX2NQKJKYJ425BWYKCT5EUHSPBRLXEJLIT2JHGTWOJ2MLYCNIVHFI,KAPPAOUU465WEJZETUOAAOYR52UHNXNGGKHDBD4HKPDFNQOZFNUGBTZF74").split(",")
 indexerAddress = os.environ.get("INDEXER_HOST") or "https://algoindexer.algoexplorerapi.io"
-creatorAddress = os.environ.get("CREATOR_ADDRESS") or "KANIGZX2NQKJKYJ425BWYKCT5EUHSPBRLXEJLIT2JHGTWOJ2MLYCNIVHFI"
 ipfsNodeName = os.environ.get("IPFS_HOST") or "ipfs"
 ipfsNodePort = os.environ.get("IPFS_PORT") or "5001"
 ipfsNodeProto = os.environ.get("IPFS_PROTO") or "http"
@@ -62,30 +62,31 @@ def pin(cid):
 
 def main() -> int:
     while True:
-        nextToken = ""
-        while nextToken is not None:
-            response = algoIndexer.lookup_account_asset_by_creator(creatorAddress, next_page=nextToken)
-            nextToken = response.get("next-token")
-            for asset in response["assets"]:
-                index = asset["index"]
-                unit = asset["params"]["unit-name"]
-                logging.info(f"Processing ASA {unit} ({index})")
+        for creatorAddress in creatorAddresses:
+            nextToken = ""
+            while nextToken is not None:
+                response = algoIndexer.lookup_account_asset_by_creator(creatorAddress, next_page=nextToken)
+                nextToken = response.get("next-token")
+                for asset in response["assets"]:
+                    index = asset["index"]
+                    unit = asset["params"]["unit-name"]
+                    logging.info(f"Processing ASA {unit} ({index})")
 
-                type, cid = extractCID(asset)
-                if cid is None:
-                    raise Exception("Could not extract CID from: " + json.dumps(asset, indent=2, sort_keys=True))
+                    type, cid = extractCID(asset)
+                    if cid is None:
+                        raise Exception("Could not extract CID from: " + json.dumps(asset, indent=2, sort_keys=True))
 
-                pin(cid)
-                if type == "json":
-                    logging.info(f"{unit} uses ARC19, retrieving metadata from IPFS...")
-                    metadata = ipfsClient.catJson(cid)
-                    if metadata is None:
-                        raise Exception(f"Could not retrieve {cid} from IPFS!")
-                    type, imageCID = extractCIDFromURL(metadata["image"])
-                    if imageCID is None:
-                        raise Exception("Could not extract ARC19 image CID from: " + json.dumps(metadata, indent=2, sort_keys=True))
+                    pin(cid)
+                    if type == "json":
+                        logging.info(f"{unit} uses ARC19, retrieving metadata from IPFS...")
+                        metadata = ipfsClient.catJson(cid)
+                        if metadata is None:
+                            raise Exception(f"Could not retrieve {cid} from IPFS!")
+                        type, imageCID = extractCIDFromURL(metadata["image"])
+                        if imageCID is None:
+                            raise Exception("Could not extract ARC19 image CID from: " + json.dumps(metadata, indent=2, sort_keys=True))
 
-                    pin(imageCID)
+                        pin(imageCID)
 
         sleepTime = int(os.environ.get("POLL_PERIOD") or 3600)
         logging.info(f"Sleeping for {sleepTime} seconds before next check...")
